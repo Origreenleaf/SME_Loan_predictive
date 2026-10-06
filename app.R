@@ -364,12 +364,9 @@ ui <- page_navbar(
       ),
       accordion(
         id   = "data_visual",
-        open = FALSE,
+        open = TRUE,
         accordion_panel(
           "Summary Statistics",
-          card(
-            gt_output("categorical_vars")
-          ),
           card(
             fill = FALSE,
             card_header("Summary of Continuous Variables"),
@@ -378,6 +375,9 @@ ui <- page_navbar(
               c(list(col_widths = c(4, 4, 4), fill = FALSE),
                 lapply(cont_spec, make_cont_card))
             )
+          ),
+          card(
+            gt_output("categorical_vars")
           )
         )
       )
@@ -394,32 +394,46 @@ ui <- page_navbar(
         border       = TRUE,
         border_color = "#dee2e6",
         h4("Model Input"),
-        card(
-          card_header(div(class = "d-flex justify-content-end gap-2",
-                          actionButton("reset_form", "Reset", icon = icon("rotate-left"),
-                                       class = "btn-primary btn-sm"))
-          ),
-          selectInput("late_payment_hist", "Late Payment History:", choices = c(levels(df_final$late_payment_history))),
-          selectInput("cashflow_stability_in", "Cashflow Stability:", choices = c(levels(df_final$cashflow_stability))),
-          selectInput("collateral_level_in", "Collateral Commitment:", choices = c(levels(df_final$collateral_level))),
-          selectInput("existing_loans_in", "Previous loans:", choices = c(levels(df_final$existing_loans))),
-          card(
-            layout_columns(
-              col_widths = c(6,6),
-              textInput("monthly_rev", "Applicants' Monthly Revenue:", placeholder = "Values only"),
-              textInput("years_ops", "Business operation years:", placeholder = "In years"),
-              textInput("loan_amount", "Loan Amount:", placeholder = "Integers only"),
-              textInput("monthly_profit", " Business Monthly Profit:", placeholder = "Values only...")
-            ),
-            textInput("loan_payment_hist", "Count of Repayment of loan:", placeholder = "Count of loan repayment history"),
-            textInput("days_payable", "Days Payable Outstanding:", placeholder = "In days")
-          ),
-          card_footer(
-            div(class = "d-flex justify-content-end gap-2",
-                actionButton("predict", "Model Prediction", icon = icon("paper-plane"),
-                             class = "btn-primary btn-sm"))
+        accordion(
+          id="predictive_model",
+          open=FALSE,
+          accordion_panel(
+            "Info Form:",
+            icon = icon("clipboard-list"),
+            card(
+              card_header(div(class = "d-flex justify-content-end gap-2",
+                              actionButton("reset_form", "Reset", icon = icon("rotate-left"),
+                                           class = "btn-primary btn-sm"))
+              ),
+              
+              layout_columns(
+                col_widths = c(6,6),
+                selectInput("late_payment_hist", "Late Payment History:", choices = c(levels(df_final$late_payment_history))),
+                selectInput("cashflow_stability_in", "Cashflow Stability:", choices = c(levels(df_final$cashflow_stability))),
+                selectInput("collateral_level_in", "Collateral Commitment:", choices = c(levels(df_final$collateral_level))),
+                selectInput("existing_loans_in", "Previous loans:", choices = c(levels(df_final$existing_loans)))
+              ),
+              card(
+                layout_columns(
+                  col_widths = c(6,6),
+                  textInput("monthly_rev", "Applicants' Monthly Revenue:", placeholder = "Values only"),
+                  textInput("years_ops", "Business operation years:", placeholder = "In years"),
+                  textInput("loan_amount", "Loan Amount:", placeholder = "Integers only"),
+                  textInput("monthly_profit", " Business Monthly Profit:", placeholder = "Values only..."),
+                  textInput("days_payable", "Days Payable Outstanding:", placeholder = "In days"),
+                  textInput("loan_payment_hist", "Count of Repayment of loan:", placeholder = "Count only..")
+                )
+              ),
+              card_footer(
+                div(class = "d-flex justify-content-end gap-2",
+                    actionButton("predict", "Model Prediction", icon = icon("paper-plane"),
+                                 class = "btn-primary btn-sm"))
+              )
+            )
+            
           )
         )
+
       ),
       accordion(
         id   = "model_acc",

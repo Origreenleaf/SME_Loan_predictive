@@ -465,7 +465,12 @@ ui <- page_navbar(
         ),
         accordion_panel(
           "Prediction Result", value = "pred_panel",
-          card(DTOutput("pred_table"))
+          value_box(
+            title    = "Model Output",
+            value    = textOutput("pred_text"),
+            showcase = icon("chart-line"),
+            theme    = value_box_theme(fg = "#093C5D", bg = "#F5F5F5")
+          )
         )
       )
     )
@@ -477,6 +482,7 @@ server <- function(input, output, session) {
   
   model_input <- InputValidator$new()
   for (id in int_inputs) model_input$add_rule(id, int_validate)
+  model_input$enable()
   
   model_input_1 <- InputValidator$new()
   for (id in int_inputs) model_input_1$add_rule(id, sv_required("This field is required"))
@@ -486,7 +492,6 @@ server <- function(input, output, session) {
   
   observeEvent(input$predict, {
     
-    model_input$enable()
     model_input_1$enable()
     req(model_input$is_valid(), model_input_1$is_valid())
     
@@ -527,12 +532,14 @@ server <- function(input, output, session) {
     if (is.null(res)) return()
     
     pct <- function(v) scales::percent(v, accuracy = 0.1)
-    pred_rv(tibble(
-      `Predicted outcome`          = if (res$.pred_Yes >= final_thr) "Missed payment" else "No missed payment",
-      `Probability of missed pmt.` = pct(res$.pred_Yes),
-      `95% CI`                     = paste0(pct(res$.pred_lower_Yes), " \u2013 ", pct(res$.pred_upper_Yes)),
-      `Decision threshold`         = sprintf("%.2f", final_thr)
-    ))
+    outcome <- if (res$.pred_Yes >= final_thr) "Missed payment" else "No missed payment"
+    prob    <- pct(res$.pred_Yes)
+    ci      <- paste0(pct(res$.pred_lower_Yes), " \u2013 ", pct(res$.pred_upper_Yes))
+    thr     <- sprintf("%.2f", final_thr)
+    
+    pred_rv(paste0("Predicted outcome: ", outcome,"
+                   Probability : ", prob, " 95% CI: (", ci, ")","
+                   Decision threshold: ", thr))
     accordion_panel_open("model_acc", "pred_panel")
     
    
@@ -540,10 +547,12 @@ server <- function(input, output, session) {
     model_input_1$disable()
   })
   
-  output$pred_table <- renderDT({
-    req(pred_rv())
-    datatable(pred_rv(), rownames = FALSE, selection = "none",
-              options = list(dom = "t", ordering = FALSE))
+  output$pred_text <- renderText({
+    if (is.null(pred_rv())) {
+      "No output provided by the model"
+    } else {
+      pred_rv()
+    }
   })
   
  
@@ -553,7 +562,6 @@ server <- function(input, output, session) {
       updateSelectInput(session, id,
                         selected = levels(df_final[[cat_inputs[[id]]]])[1])
     }
-    model_input$disable()
     model_input_1$disable()
     pred_rv(NULL)
   })

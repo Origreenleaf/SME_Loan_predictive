@@ -395,8 +395,8 @@ ui <- page_navbar(
         border_color = "#dee2e6",
         h4("Model Input"),
         accordion(
-          id="predictive_model",
-          open=FALSE,
+          id   = "predictive_model",
+          open = FALSE,
           accordion_panel(
             "Info Form:",
             icon = icon("clipboard-list"),
@@ -430,10 +430,8 @@ ui <- page_navbar(
                                  class = "btn-primary btn-sm"))
               )
             )
-            
           )
         )
-
       ),
       accordion(
         id   = "model_acc",
@@ -466,10 +464,13 @@ ui <- page_navbar(
         accordion_panel(
           "Prediction Result", value = "pred_panel",
           value_box(
-            title    = "Model Output",
+            title    = "Credit Risk Prediction",
             value    = textOutput("pred_text"),
-            showcase = icon("chart-line"),
-            theme    = value_box_theme(fg = "#093C5D", bg = "#F5F5F5")
+            showcase = icon("gauge-high"),
+            theme    = value_box_theme(
+              fg = "#093C5D",
+              bg = "#F5F5F5"
+            )
           )
         )
       )
@@ -479,34 +480,43 @@ ui <- page_navbar(
 
 server <- function(input, output, session) {
   
+  # TRUE after the user clicks Model Prediction, FALSE again after Reset
+  submitted <- reactiveVal(FALSE)
+  
+  # One rule handles both checks:
+  #  - blank   -> "required" error, but only after the first predict click
+  #  - invalid -> whole-number error, shown live as the user types
+  combined_validate <- function(value) {
+    v <- trimws(if (is.null(value)) "" else value)
+    if (!nzchar(v)) {
+      if (submitted()) return("This field is required")
+      return(NULL)
+    }
+    int_validate(value)
+  }
   
   model_input <- InputValidator$new()
-  for (id in int_inputs) model_input$add_rule(id, int_validate)
+  for (id in int_inputs) model_input$add_rule(id, combined_validate)
   model_input$enable()
-  
-  model_input_1 <- InputValidator$new()
-  for (id in int_inputs) model_input_1$add_rule(id, sv_required("This field is required"))
-  
   
   pred_rv <- reactiveVal(NULL)
   
   observeEvent(input$predict, {
     
-    model_input_1$enable()
-    req(model_input$is_valid(), model_input_1$is_valid())
+    submitted(TRUE)
+    req(model_input$is_valid())
     
- 
     newdata <- tibble(
-      late_payment_history  = factor(input$late_payment_hist,     levels = levels(df_final$late_payment_history)),
-      cashflow_stability    = factor(input$cashflow_stability_in, levels = levels(df_final$cashflow_stability)),
-      collateral_level      = factor(input$collateral_level_in,   levels = levels(df_final$collateral_level)),
-      existing_loans        = factor(input$existing_loans_in,     levels = levels(df_final$existing_loans)),
-      monthly_revenue       = num(input$monthly_rev),
-      years_operating       = num(input$years_ops),
-      loan_amount           = num(input$loan_amount),
-      previous_loans_repaid = num(input$loan_payment_hist),
+      late_payment_history     = factor(input$late_payment_hist,     levels = levels(df_final$late_payment_history)),
+      cashflow_stability       = factor(input$cashflow_stability_in, levels = levels(df_final$cashflow_stability)),
+      collateral_level         = factor(input$collateral_level_in,   levels = levels(df_final$collateral_level)),
+      existing_loans           = factor(input$existing_loans_in,     levels = levels(df_final$existing_loans)),
+      monthly_revenue          = num(input$monthly_rev),
+      years_operating          = num(input$years_ops),
+      loan_amount              = num(input$loan_amount),
+      previous_loans_repaid    = num(input$loan_payment_hist),
       days_payable_outstanding = num(input$days_payable),
-      monthly_profit_bdt    = num(input$monthly_profit)
+      monthly_profit_bdt       = num(input$monthly_profit)
     ) %>%
       mutate(
         loan_to_profit  = loan_amount / pmax(monthly_profit_bdt, 1),
@@ -537,14 +547,14 @@ server <- function(input, output, session) {
     ci      <- paste0(pct(res$.pred_lower_Yes), " \u2013 ", pct(res$.pred_upper_Yes))
     thr     <- sprintf("%.2f", final_thr)
     
-    pred_rv(paste0("Predicted outcome: ", outcome,"
-                   Probability : ", prob, " 95% CI: (", ci, ")","
-                   Decision threshold: ", thr))
+    pred_rv(paste0("Predicted outcome: ", outcome,
+                   "\nProbability of missed payment: ", prob,
+                   "\n95% confidence interval: (", ci, ")",
+                   "\nDecision threshold: ", thr))
     accordion_panel_open("model_acc", "pred_panel")
     
-   
-    model_input$disable()
-    model_input_1$disable()
+    # same effect as the old model_input_1$disable() after a successful prediction
+    submitted(FALSE)
   })
   
   output$pred_text <- renderText({
@@ -555,14 +565,13 @@ server <- function(input, output, session) {
     }
   })
   
- 
   observeEvent(input$reset_form, {
     for (id in int_inputs) updateTextInput(session, id, value = "")
     for (id in names(cat_inputs)) {
       updateSelectInput(session, id,
                         selected = levels(df_final[[cat_inputs[[id]]]])[1])
     }
-    model_input_1$disable()
+    submitted(FALSE)
     pred_rv(NULL)
   })
   
@@ -606,7 +615,7 @@ server <- function(input, output, session) {
       ungroup()
   })
   
-
+  
   lapply(cont_spec, function(s) {
     v    <- s$var
     type <- s$type
@@ -687,7 +696,7 @@ server <- function(input, output, session) {
     })
   })
   
- 
+  
   output$ig_table <- render_gt({
     tbl <- ig %>%
       arrange(desc(importance)) %>%
@@ -724,7 +733,7 @@ server <- function(input, output, session) {
         table_body.hlines.color    = "#E5E5E5"
       )
   })
-
+  
   output$continuous_vars_df <- render_gt({
     p_fmt <- function(x) ifelse(x < 0.001, "<0.001", sprintf("%.3f", x))
     
